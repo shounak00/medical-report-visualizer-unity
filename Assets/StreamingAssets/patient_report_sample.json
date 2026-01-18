@@ -1,0 +1,26 @@
+{
+  "patientId": "P-1024",
+  "age": 58,
+  "gender": "Male",
+  "vitals": {
+    "heartRate": [72, 75, 78, 80, 76, 74, 77],
+    "bloodPressure": [
+      { "systolic": 120, "diastolic": 80 },
+      { "systolic": 122, "diastolic": 82 },
+      { "systolic": 130, "diastolic": 85 },
+      { "systolic": 135, "diastolic": 88 }
+    ]
+  },
+  "labs": [
+    { "name": "Hemoglobin", "value": 11.2, "normalMin": 13.5, "normalMax": 17.5 },
+    { "name": "WBC", "value": 12.8, "normalMin": 4.0, "normalMax": 11.0 }
+  ],
+  "imaging": {
+    "ctSlices": 120,
+    "dicomSeriesPath": "DicomSeries/P-1024_SyntheticChestCT",
+    "findings": [
+      "Mild lung opacity",
+      "No fracture detected"
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: a5ace8880dd98b34198f63916c219152
+timeCreated: 1506608826
+licenseType: Store
+TextScriptImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 60902
+  packageName: fo-dicom
+  packageVersion: 3.5.0
+  assetPath: Assets/fo-dicom/Demo/Images/US-RGB-8-epicard.bytes
+  uploadId: 203619

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: f868f52b9a717b3458db285ac3ccc502
+timeCreated: 1506591709
+licenseType: Store
+TextScriptImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 60902
+  packageName: fo-dicom
+  packageVersion: 3.5.0
+  assetPath: Assets/fo-dicom/Assets/Resources/Private Dictionary.xml
+  uploadId: 203619

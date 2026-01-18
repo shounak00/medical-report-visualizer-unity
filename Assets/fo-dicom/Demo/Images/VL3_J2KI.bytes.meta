@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 817242a82beaa0647846fe27179b0a9d
+timeCreated: 1506608836
+licenseType: Store
+TextScriptImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 60902
+  packageName: fo-dicom
+  packageVersion: 3.5.0
+  assetPath: Assets/fo-dicom/Demo/Images/VL3_J2KI.bytes
+  uploadId: 203619

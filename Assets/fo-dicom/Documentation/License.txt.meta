@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: b79d9f341f42fa549b0c1e87ae7331c5
+timeCreated: 1506591568
+licenseType: Store
+TextScriptImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 60902
+  packageName: fo-dicom
+  packageVersion: 3.5.0
+  assetPath: Assets/fo-dicom/Documentation/License.txt
+  uploadId: 203619
