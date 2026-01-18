@@ -1,130 +1,130 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Collections;
+using System.Globalization;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using UnityEngine.Networking;
 
+// fo-dicom (Asset Store) namespaces
 using Dicom;
 using Dicom.Imaging;
 using Dicom.IO.Buffer;
 
 public class DicomSliceViewerController : MonoBehaviour
 {
-    [Header("Meta + Window/Level UI")]
-    [SerializeField] private TMP_Text metaText;
-
-    [SerializeField] private Slider wcSlider;
-    [SerializeField] private TMP_Text wcValueText;
-
-    [SerializeField] private Slider wwSlider;
-    [SerializeField] private TMP_Text wwValueText;
-
-    [Header("Findings UI")]
-    [SerializeField] private TMP_Text findingsListText;
-
-    
     [Header("UI")]
     [SerializeField] private TMP_Text titleText;
     [SerializeField] private RawImage sliceImage;
     [SerializeField] private Slider sliceSlider;
     [SerializeField] private TMP_Text sliceIndexText;
 
-    [Header("Series Folder (relative to StreamingAssets)")]
-    [SerializeField] private string seriesFolder = "DicomSeries/P-1024_SyntheticChestCT";
+    [Header("Meta + Findings UI")]
+    [SerializeField] private TMP_Text metaText;
+    [SerializeField] private TMP_Text findingsListText;
 
-    [Header("Window/Level")]
-    [SerializeField] private float windowWidth = 1500f;
-    [SerializeField] private float windowCenter = -600f;
+    [Header("Window/Level UI (DICOM only)")]
+    [SerializeField] private Slider wcSlider;
+    [SerializeField] private TMP_Text wcValueText;
+    [SerializeField] private Slider wwSlider;
+    [SerializeField] private TMP_Text wwValueText;
 
-    private DicomFile[] _files = Array.Empty<DicomFile>();
-    private Texture2D _tex;
-    private int _count;
-    
-    private string _patientId = "P-1024";
-    private string[] _findings = null;
-    private int _currentIndex = 0;
-    
-    [Header("Preset Buttons")]
+    [Header("Preset Buttons (DICOM only)")]
     [SerializeField] private Button lungPresetButton;
     [SerializeField] private Button softPresetButton;
     [SerializeField] private Button bonePresetButton;
 
+    [Header("Series Folder (relative to StreamingAssets)")]
+    [Tooltip("DICOM folder relative path. Example: DicomSeries/P-1024_SyntheticChestCT")]
+    [SerializeField] private string seriesFolder = "DicomSeries/P-1024_SyntheticChestCT";
 
-    private void SetupPresetButtons()
-    {
-        void Apply(float wc, float ww)
-        {
-            windowCenter = wc;
-            windowWidth = Mathf.Max(1f, ww);
+    [Header("PNG fallback folder (relative to StreamingAssets)")]
+    [Tooltip("PNG fallback folder relative path. Example: Imaging/P-1024_SlicesPNG")]
+    [SerializeField] private string pngFolder = "Imaging/P-1024_SlicesPNG";
 
-            if (wcSlider != null) wcSlider.SetValueWithoutNotify(windowCenter);
-            if (wwSlider != null) wwSlider.SetValueWithoutNotify(windowWidth);
+    [Header("Window/Level (DICOM)")]
+    [SerializeField] private float windowWidth = 1500f;
+    [SerializeField] private float windowCenter = -600f;
 
-            if (wcValueText != null) wcValueText.text = Mathf.RoundToInt(windowCenter).ToString();
-            if (wwValueText != null) wwValueText.text = Mathf.RoundToInt(windowWidth).ToString();
+    private enum ImagingMode { Dicom, Png }
+    private ImagingMode _mode;
 
-            RedrawCurrent();
-        }
+    // DICOM mode
+    private DicomFile[] _files = Array.Empty<DicomFile>();
 
-        if (lungPresetButton != null)
-        {
-            lungPresetButton.onClick.RemoveAllListeners();
-            lungPresetButton.onClick.AddListener(() => Apply(-600f, 1500f));
-        }
+    // PNG mode
+    private string[] _pngUrls = Array.Empty<string>();
+    private Coroutine _pngLoadRoutine;
 
-        if (softPresetButton != null)
-        {
-            softPresetButton.onClick.RemoveAllListeners();
-            softPresetButton.onClick.AddListener(() => Apply(40f, 400f));
-        }
+    // Shared
+    private Texture2D _tex;
+    private int _count;
+    private int _currentIndex;
 
-        if (bonePresetButton != null)
-        {
-            bonePresetButton.onClick.RemoveAllListeners();
-            bonePresetButton.onClick.AddListener(() => Apply(300f, 1500f));
-        }
-    }
-
+    private string _patientId = "P-1024";
+    private string[] _findings;
 
     private void Start()
     {
-        SetupWindowLevelUI();
-        UpdateMetaText();
+#if UNITY_WEBGL
+        _mode = ImagingMode.Png;
+#else
+        _mode = ImagingMode.Dicom;
+#endif
 
-        if (titleText != null) titleText.text = "CT Viewer (Synthetic DICOM Series)";
+        if (titleText != null)
+            titleText.text = _mode == ImagingMode.Dicom
+                ? "CT Viewer (DICOM Series)"
+                : "CT Viewer (PNG Slice Stack)";
 
-        LoadSeries();
+        // DICOM-only UI
+        if (_mode == ImagingMode.Dicom)
+        {
+            SetupWindowLevelUI();
+            SetupPresetButtons();
+        }
+        else
+        {
+            HideDicomOnlyUI();
+        }
+
+        LoadSeriesOrStack();
         SetupSlider();
 
         if (_count > 0)
             ShowSlice(0);
-        
-        SetupPresetButtons();
 
+        UpdateMetaText();
     }
-    
-    private void Update()
+
+    // --- Public API (called from DashboardController) ---
+
+    /// <summary>
+    /// Set where to load imaging from. Use the DICOM folder for native builds.
+    /// For WebGL, the component automatically switches to PNG and uses pngFolder instead.
+    /// </summary>
+    public void SetSeriesFolder(string seriesFolderRelativeToStreamingAssets, int expectedSlices = -1, string pngFolderRelativeToStreamingAssets = null)
     {
-        if (_count <= 0 || sliceSlider == null) return;
+        if (!string.IsNullOrEmpty(seriesFolderRelativeToStreamingAssets))
+            seriesFolder = seriesFolderRelativeToStreamingAssets;
 
-        // Arrow key step
-        //if (Input.GetKeyDown(KeyCode.LeftArrow)) StepSlice(-1);
-        //if (Input.GetKeyDown(KeyCode.RightArrow)) StepSlice(1);
+        if (!string.IsNullOrEmpty(pngFolderRelativeToStreamingAssets))
+            pngFolder = pngFolderRelativeToStreamingAssets;
 
-        // Mouse wheel scrub (optional)
-        float wheel = Input.mouseScrollDelta.y;
-        if (Mathf.Abs(wheel) > 0.01f) StepSlice(wheel > 0 ? 1 : -1);
+        // If WebGL and expectedSlices is provided, we can use it to build fixed URLs even if directory listing isn't available
+        if (expectedSlices > 0) _count = expectedSlices;
+
+        LoadSeriesOrStack();
+        SetupSlider();
+
+        if (_count > 0)
+            ShowSlice(0);
+
+        UpdateMetaText();
     }
 
-    private void StepSlice(int delta)
-    {
-        int next = Mathf.Clamp(_currentIndex + delta, 0, _count - 1);
-        sliceSlider.SetValueWithoutNotify(next);
-        ShowSlice(next);
-    }
-
-    
     public void BindPatientContext(string patientId, string[] findings)
     {
         _patientId = string.IsNullOrEmpty(patientId) ? "P-????" : patientId;
@@ -140,7 +140,31 @@ public class DicomSliceViewerController : MonoBehaviour
 
         UpdateMetaText();
     }
-    
+
+    // --- Mode selection + UI ---
+
+    private void HideDicomOnlyUI()
+    {
+        if (wcSlider != null) wcSlider.gameObject.SetActive(false);
+        if (wwSlider != null) wwSlider.gameObject.SetActive(false);
+        if (wcValueText != null) wcValueText.gameObject.SetActive(false);
+        if (wwValueText != null) wwValueText.gameObject.SetActive(false);
+
+        if (lungPresetButton != null) lungPresetButton.gameObject.SetActive(false);
+        if (softPresetButton != null) softPresetButton.gameObject.SetActive(false);
+        if (bonePresetButton != null) bonePresetButton.gameObject.SetActive(false);
+    }
+
+    private void LoadSeriesOrStack()
+    {
+        if (_mode == ImagingMode.Dicom)
+            LoadDicomSeries();
+        else
+            LoadPngStack();
+    }
+
+    // --- Window/Level + Presets (DICOM only) ---
+
     private void SetupWindowLevelUI()
     {
         if (wcSlider != null)
@@ -176,6 +200,40 @@ public class DicomSliceViewerController : MonoBehaviour
         }
     }
 
+    private void SetupPresetButtons()
+    {
+        void Apply(float wc, float ww)
+        {
+            windowCenter = wc;
+            windowWidth = Mathf.Max(1f, ww);
+
+            if (wcSlider != null) wcSlider.SetValueWithoutNotify(windowCenter);
+            if (wwSlider != null) wwSlider.SetValueWithoutNotify(windowWidth);
+
+            if (wcValueText != null) wcValueText.text = Mathf.RoundToInt(windowCenter).ToString();
+            if (wwValueText != null) wwValueText.text = Mathf.RoundToInt(windowWidth).ToString();
+
+            RedrawCurrent();
+        }
+
+        if (lungPresetButton != null)
+        {
+            lungPresetButton.onClick.RemoveAllListeners();
+            lungPresetButton.onClick.AddListener(() => Apply(-600f, 1500f)); // lung
+        }
+
+        if (softPresetButton != null)
+        {
+            softPresetButton.onClick.RemoveAllListeners();
+            softPresetButton.onClick.AddListener(() => Apply(40f, 400f)); // soft tissue
+        }
+
+        if (bonePresetButton != null)
+        {
+            bonePresetButton.onClick.RemoveAllListeners();
+            bonePresetButton.onClick.AddListener(() => Apply(300f, 1500f)); // bone-ish
+        }
+    }
 
     private void RedrawCurrent()
     {
@@ -183,14 +241,9 @@ public class DicomSliceViewerController : MonoBehaviour
         ShowSlice(_currentIndex);
     }
 
-    private void UpdateMetaText()
-    {
-        if (metaText == null) return;
-        metaText.text = $"Patient: {_patientId}   |   Slices: {_count}   |   WL: {Mathf.RoundToInt(windowCenter)} / {Mathf.RoundToInt(windowWidth)}";
-    }
+    // --- Loading: DICOM ---
 
-
-    private void LoadSeries()
+    private void LoadDicomSeries()
     {
         string folderPath = Path.Combine(Application.streamingAssetsPath, seriesFolder);
 
@@ -211,7 +264,6 @@ public class DicomSliceViewerController : MonoBehaviour
             return;
         }
 
-        // Load + sort by InstanceNumber (works for your generated series)
         _files = paths
             .Select(p => DicomFile.Open(p))
             .OrderBy(f => GetInstanceNumber(f.Dataset))
@@ -226,15 +278,47 @@ public class DicomSliceViewerController : MonoBehaviour
     {
         try
         {
-            // Old fo-dicom style
-            // If tag missing, return 0
             if (ds.Contains(DicomTag.InstanceNumber))
                 return ds.Get<int>(DicomTag.InstanceNumber, 0);
         }
-        catch { /* ignore */ }
-
+        catch { }
         return 0;
     }
+
+    // --- Loading: PNG (WebGL-friendly) ---
+
+    private void LoadPngStack()
+    {
+        // Build URL paths; in WebGL we don't rely on Directory.GetFiles.
+        string basePath = Path.Combine(Application.streamingAssetsPath, pngFolder);
+
+#if UNITY_WEBGL
+        int assumed = _count > 0 ? _count : 120; // if JSON passed ctSlices, use it; else default 120
+        _pngUrls = Enumerable.Range(1, assumed)
+            .Select(i => Path.Combine(basePath, $"slice_{i:D4}.png"))
+            .ToArray();
+        _count = _pngUrls.Length;
+#else
+        if (!Directory.Exists(basePath))
+        {
+            Debug.LogError("PNG stack folder not found: " + basePath);
+            _pngUrls = Array.Empty<string>();
+            _count = 0;
+            return;
+        }
+
+        _pngUrls = Directory.GetFiles(basePath, "*.png", SearchOption.TopDirectoryOnly)
+            .OrderBy(p => p)
+            .Select(p => p)
+            .ToArray();
+
+        _count = _pngUrls.Length;
+
+        Debug.Log($"Loaded {_count} PNG slices from: {basePath}");
+#endif
+    }
+
+    // --- Slider wiring ---
 
     private void SetupSlider()
     {
@@ -256,35 +340,34 @@ public class DicomSliceViewerController : MonoBehaviour
         sliceSlider.wholeNumbers = true;
         sliceSlider.minValue = 0;
         sliceSlider.maxValue = _count - 1;
-        sliceSlider.value = 0;
+        sliceSlider.value = Mathf.Clamp(sliceSlider.value, 0, _count - 1);
         sliceSlider.interactable = true;
 
         sliceSlider.onValueChanged.AddListener(v => ShowSlice((int)v));
     }
-    
-    public void SetSeriesFolder(string seriesFolderRelativeToStreamingAssets, int expectedSlices = -1)
-    {
-        seriesFolder = seriesFolderRelativeToStreamingAssets;
 
-        LoadSeries();
-        SetupSlider();
-
-        if (_count > 0)
-            ShowSlice(0);
-
-        if (expectedSlices > 0 && expectedSlices != _count)
-            Debug.LogWarning($"Expected {expectedSlices} slices but found {_count} in {seriesFolder}");
-    }
-
+    // --- Rendering ---
 
     private void ShowSlice(int index)
     {
-        _currentIndex = index;
+        _currentIndex = Mathf.Clamp(index, 0, Mathf.Max(0, _count - 1));
 
+        if (_mode == ImagingMode.Dicom)
+        {
+            ShowDicomSlice(_currentIndex);
+        }
+        else
+        {
+            if (_pngLoadRoutine != null) StopCoroutine(_pngLoadRoutine);
+            _pngLoadRoutine = StartCoroutine(ShowPngSlice(_currentIndex));
+        }
+    }
+
+    private void ShowDicomSlice(int index)
+    {
         if (_files == null || _files.Length == 0) return;
 
         index = Mathf.Clamp(index, 0, _files.Length - 1);
-
         var ds = _files[index].Dataset;
 
         int rows = ds.Get<int>(DicomTag.Rows, 0);
@@ -296,7 +379,6 @@ public class DicomSliceViewerController : MonoBehaviour
             return;
         }
 
-        // Extract 16-bit signed pixel data from the dataset
         var pixelData = DicomPixelData.Create(ds);
         IByteBuffer frame = pixelData.GetFrame(0);
         byte[] bytes = frame.Data;
@@ -306,14 +388,12 @@ public class DicomSliceViewerController : MonoBehaviour
 
         EnsureTexture(cols, rows);
 
-        // Window/Level -> 8-bit grayscale
         float ww = Mathf.Max(1f, windowWidth);
         float wc = windowCenter;
         float low = wc - ww * 0.5f;
         float invW = 1f / ww;
 
-        UnityEngine.Color32[] outPx = new UnityEngine.Color32[cols * rows];
-
+        var outPx = new UnityEngine.Color32[cols * rows];
         for (int i = 0; i < outPx.Length; i++)
         {
             float n = (src[i] - low) * invW;
@@ -326,9 +406,49 @@ public class DicomSliceViewerController : MonoBehaviour
 
         if (sliceImage != null) sliceImage.texture = _tex;
         if (sliceIndexText != null) sliceIndexText.text = $"Slice: {index + 1} / {_count}";
-        
-        UpdateMetaText();
 
+        UpdateMetaText();
+    }
+
+    private IEnumerator ShowPngSlice(int index)
+    {
+        if (_pngUrls == null || _pngUrls.Length == 0) yield break;
+
+        index = Mathf.Clamp(index, 0, _pngUrls.Length - 1);
+        string url = _pngUrls[index];
+
+        using (var req = UnityWebRequestTexture.GetTexture(url))
+        {
+            yield return req.SendWebRequest();
+#if UNITY_2020_2_OR_NEWER
+            if (req.result != UnityWebRequest.Result.Success)
+#else
+            if (req.isNetworkError || req.isHttpError)
+#endif
+            {
+                Debug.LogError("PNG load failed: " + req.error + " | " + url);
+                yield break;
+            }
+
+            var tex = DownloadHandlerTexture.GetContent(req);
+
+            if (sliceImage != null) sliceImage.texture = tex;
+            if (sliceIndexText != null) sliceIndexText.text = $"Slice: {index + 1} / {_count}";
+
+            UpdateMetaText();
+        }
+    }
+
+    private void UpdateMetaText()
+    {
+        if (metaText == null) return;
+
+        string mode = _mode == ImagingMode.Dicom ? "DICOM" : "PNG";
+        string wl = _mode == ImagingMode.Dicom
+            ? $" | WL: {Mathf.RoundToInt(windowCenter)} / {Mathf.RoundToInt(windowWidth)}"
+            : "";
+
+        metaText.text = $"Patient: {_patientId} | Slices: {_count} | Mode: {mode}{wl}";
     }
 
     private void EnsureTexture(int w, int h)

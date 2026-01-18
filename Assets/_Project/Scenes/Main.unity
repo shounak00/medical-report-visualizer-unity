@@ -1657,7 +1657,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 0.000015258789, y: 0.00003320551}
+  m_AnchoredPosition: {x: 0.000015258789, y: 0.000119940865}
   m_SizeDelta: {x: 0, y: 300}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &537016868
@@ -1673,9 +1673,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.VerticalLayoutGroup
   m_Padding:
-    m_Left: 0
+    m_Left: 50
     m_Right: 0
-    m_Top: 0
+    m_Top: 50
     m_Bottom: 0
   m_ChildAlignment: 0
   m_Spacing: 5
@@ -5417,22 +5417,23 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7f265fa335fd4c544a297eb0d862edd6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DicomSliceViewerController
-  metaText: {fileID: 641674754}
-  wcSlider: {fileID: 462843287}
-  wcValueText: {fileID: 1491301551}
-  wwSlider: {fileID: 1302699167}
-  wwValueText: {fileID: 2118676503}
-  findingsListText: {fileID: 247750564}
   titleText: {fileID: 1546175855}
   sliceImage: {fileID: 1830442146}
   sliceSlider: {fileID: 984803006}
   sliceIndexText: {fileID: 1502916453}
-  seriesFolder: DicomSeries/P-1024_SyntheticChestCT
-  windowWidth: 1500
-  windowCenter: -600
+  metaText: {fileID: 641674754}
+  findingsListText: {fileID: 247750564}
+  wcSlider: {fileID: 462843287}
+  wcValueText: {fileID: 1491301551}
+  wwSlider: {fileID: 1302699167}
+  wwValueText: {fileID: 2118676503}
   lungPresetButton: {fileID: 1747020920}
   softPresetButton: {fileID: 1144245785}
   bonePresetButton: {fileID: 799956810}
+  seriesFolder: DicomSeries/P-1024_SyntheticChestCT
+  pngFolder: Imaging/P-1024_SlicesPNG
+  windowWidth: 1500
+  windowCenter: -600
 --- !u!114 &1608610901
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6190,8 +6191,6 @@ MonoBehaviour:
   diastolicColor: {r: 0.2, g: 0.55, b: 0.95, a: 1}
   labTable: {fileID: 1550648142}
   sliceViewer: {fileID: 1608610900}
-  dicomViewer: {fileID: 0}
-  pngViewer: {fileID: 0}
 --- !u!4 &1740778196
 Transform:
   m_ObjectHideFlags: 0
@@ -6835,7 +6834,7 @@ MonoBehaviour:
   m_HandleRect: {fileID: 376120275}
   m_Direction: 2
   m_Value: 0
-  m_Size: 1
+  m_Size: 0.9999956
   m_NumberOfSteps: 0
   m_OnValueChanged:
     m_PersistentCalls:
